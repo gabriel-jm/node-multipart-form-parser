@@ -26,8 +26,6 @@ const server = http.createServer((req, res) => {
               data
             })
           } else {
-            console.log({ currentData, data })
-
             Reflect.set(currentData, 'data', Buffer.concat([
               currentData.data,
               data
@@ -39,7 +37,6 @@ const server = http.createServer((req, res) => {
         Reflect.set(finalBody, name, value)
       })
       .on('finish', () => {
-        console.log({ finalBody })
         res.writeHead(200, { 'Content-Type': finalBody.file.mimeType })
         res.end(finalBody.file.data)
       })
@@ -92,8 +89,6 @@ const server = http.createServer((req, res) => {
             }
           }
 
-          console.log('is content buffer equal', Buffer.compare(data, contentBuffer) === 0)
-          
           const { groups } = match
 
           value[groups.key] = {
