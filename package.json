@@ -1,0 +1,22 @@
+{
+  "name": "multipart-form-parser",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server-multipart.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Gabriel-JM/node-multipart-form-parser.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Gabriel-JM/node-multipart-form-parser/issues"
+  },
+  "homepage": "https://github.com/Gabriel-JM/node-multipart-form-parser#readme",
+  "dependencies": {
+    "busboy": "^1.6.0"
+  }
+}

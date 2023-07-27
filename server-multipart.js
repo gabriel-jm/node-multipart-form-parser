@@ -1,52 +1,98 @@
 const http = require('http')
+const busboy = require('busboy')
+
+const fileFieldRegex = /\r\nContent-Disposition: form-data; name="(?<key>.+)"; filename="(?<name>.+)"\r\nContent-Type: (?<type>.+)\r\n\r\n/
 
 const server = http.createServer((req, res) => {
   const boundary = req.headers['content-type'].split('; boundary=')[1]
 
-  let body = []
+  if (req.url === '/busboy') {
+    const busboyParser = busboy({ headers: req.headers })
+    
+    const finalBody = {}
 
-  req.on('data', chunk => {
-    body = [...body, chunk]
-  })
+    busboyParser
+      .on('file', (name, file, info) => {
+        const { filename, encoding, mimeType } = info
 
-  req.on('end', () => {
-    const buffer = Buffer.concat(body)
-    body = buffer.toString()
+        file.on('data', data => {
+          const currentData = Reflect.get(finalBody, name)
 
-    const value = {}
+          if (!currentData) {
+            Reflect.set(finalBody, name, {
+              filename,
+              encoding,
+              mimeType,
+              data
+            })
+          } else {
+            console.log({ currentData, data })
 
-    body
-      .split(`--${boundary}`)
-      .forEach(item => {
+            Reflect.set(currentData, 'data', Buffer.concat([
+              currentData.data,
+              data
+            ]))
+          }
+        })
+      })
+      .on('field', (name, value) => {
+        Reflect.set(finalBody, name, value)
+      })
+      .on('finish', () => {
+        console.log({ finalBody })
+        res.writeHead(200, { 'Content-Type': finalBody.file.mimeType })
+        res.end(finalBody.file.data)
+      })
+
+    req.pipe(busboyParser)
+  } else {
+    let body = []
+
+    req.on('data', chunk => {
+      body = [...body, chunk]
+    })
+
+    req.on('end', () => {
+      const fullBodyBuffer = Buffer.concat(body)
+      body = fullBodyBuffer.toString('latin1')
+
+      const value = {}
+
+      const boundaryBuffer = Buffer.from(`--${boundary}`)
+
+      for (const item of body.split(`--${boundary}`)) {
         if(item.includes('filename')) {
-          const match = item.match(
-            /\r\nContent-Disposition: form-data; name="(?<key>.+)"; filename="(?<name>.+)"\r\nContent-Type: (?<type>.+)\r\n\r\n/
-          )
+          const match = item.match(fileFieldRegex)
 
-          const [mathText] = match
+          const [matchText] = match
+          const contentBuffer = Buffer.from(item.substring(matchText.length).replace(/\r\n$/, ''))
+          const matchBuffer = Buffer.from(matchText)
+          const fieldTextLength = matchBuffer.length
+          
           let startIndex = null
           let data = null
-          const fieldTextLength = Buffer.from(mathText).length
 
-          for(let b=0; b <= buffer.length; b++) {
-            if(startIndex) {
-              const subBuf = buffer.slice(b, b + boundary.length + 2)
-
-              if(subBuf.toString() === `--${boundary}`) {
-                data = buffer.subarray(startIndex, b)
-                break
-              }
-            }
-
+          for(let b=0; b <= fullBodyBuffer.length; b++) {
             if(!startIndex) {
               const end = b + fieldTextLength
-              const subBuf = buffer.slice(b, end)
+              const subBuf = fullBodyBuffer.subarray(b, end)
               
-              if(subBuf.toString() === mathText) {
+              if(Buffer.compare(subBuf, matchBuffer) === 0) {
                 startIndex = end
               }
             }
+            
+            if(startIndex) {
+              const subBuf = fullBodyBuffer.subarray(b, b + boundary.length + 2)
+
+              if(Buffer.compare(subBuf, boundaryBuffer) === 0) {
+                data = fullBodyBuffer.subarray(startIndex, b)
+                break
+              }
+            }
           }
+
+          console.log('is content buffer equal', Buffer.compare(data, contentBuffer) === 0)
           
           const { groups } = match
 
@@ -66,15 +112,14 @@ const server = http.createServer((req, res) => {
             value[groups.key] = groups.value
           }
         }
-      })
-    ;
+      }
 
-    body = value
+      body = value
 
-    res.writeHead(200, { 'Content-Type': 'image/jpg' })
-    res.end(body.file.data)
-  })
-
+      res.writeHead(200, { 'Content-Type': body.file.type })
+      res.end(body.file.data)
+    })
+  }
 })
 
 server.listen(3100, () => {
